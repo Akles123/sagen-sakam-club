@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() &&
+        request.auth.token.email == "ssegckairasol@gmail.com";
+    }
+
+    // सार्वजनिक वेबसाइट सिर्फ टीम एंट्री भेज सकती है।
+    // केवल एडमिन टीम एंट्री पढ़/बदल सकता है।
+    match /teams/{teamId} {
+      allow create: if request.resource.data.keys().hasOnly([
+        'teamName','captain','phone','village','note','status','createdAt'
+      ]) &&
+      request.resource.data.teamName is string &&
+      request.resource.data.teamName.size() > 0 &&
+      request.resource.data.teamName.size() <= 70 &&
+      request.resource.data.captain is string &&
+      request.resource.data.captain.size() > 0 &&
+      request.resource.data.phone is string &&
+      request.resource.data.phone.size() >= 10 &&
+      request.resource.data.phone.size() <= 16 &&
+      request.resource.data.status == 'pending';
+      allow read, update, delete: if isAdmin();
+    }
+
+    // UTR दावा सार्वजनिक रूप से submit हो सकता है; पढ़ना केवल एडमिन को।
+    match /payments/{paymentId} {
+      allow create: if request.resource.data.keys().hasOnly([
+        'teamName','phone','amount','utr','status','createdAt'
+      ]) &&
+      request.resource.data.teamName is string &&
+      request.resource.data.teamName.size() > 0 &&
+      request.resource.data.phone is string &&
+      request.resource.data.utr is string &&
+      request.resource.data.utr.size() >= 6 &&
+      request.resource.data.utr.size() <= 40 &&
+      request.resource.data.amount in [1000, 1551] &&
+      request.resource.data.status == 'pending';
+      allow read, update, delete: if isAdmin();
+    }
+
+    // रिजल्ट सभी देख सकते हैं; सिर्फ एडमिन प्रकाशित कर सकता है।
+    match /results/{resultId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // सार्वजनिक UPI ID/नाम पढ़ सकते हैं; सिर्फ एडमिन बदल सकता है।
+    match /settings/{settingId} {
+      allow read: if settingId == 'public';
+      allow write: if isAdmin();
+    }
+  }
+}
